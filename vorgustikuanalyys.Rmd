@@ -1,0 +1,719 @@
+---
+title: "Sissejuhatus võrgustikuanalüüsi"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+author: Lisanna Lehes
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: spacelab
+    highlight: tango
+    fig_cap: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Kasulikud shortcutid R-i ja Markdowni kasutamiseks:**
+
+-   **f1** = abistav info funktsiooni/paketi kohta
+
+-   **ctrl + shift + c** = saab kommenteerida sektsiooni välja
+
+-   **ctrl + alt + I** = uus *code chunk* e. koodikast (.Rmd failis)
+
+-   **ctrl + alt + M** = *pipe* e. `%>%`
+
+# Vajalikud paketid
+
+Vajadusel kasuta käsku `install.packages()`, et tänaseks praktikumiks vajalikud paketid alla laadida.
+
+```{r}
+# install.packages("tidygraph")
+# install.packages("ggraph")
+# install.packages("visNetwork")
+```
+
+Laeme sisse vajalikud paketid.
+
+```{r paketid, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(visNetwork)
+```
+
+Võrgustiku kaks peamist komponenti on punktid (*nodes*) ja nendevahelised ühendused, mida nimetatakse seosteks (*edges*).
+
+-   ***Nodes*** -\> punktid/sõlmed
+
+-   ***Edges*** -\> seosed/lingid punktide vahel
+
+```{r pressure1, echo=FALSE, out.width = '100%'}
+knitr::include_graphics("images/nodes_edges.jpg")
+```
+
+Võrgustiku koostamiseks on vaja loendit mõlemast. Seoste loend (*edge list*) on andmeraam, mis sisaldab vähemalt kahte veergu: ühte veergu punktidest, mis on ühenduse allikaks, ja teist veergu punktidest, mis on ühenduse sihtmärgiks. Andmetes olevad punktid identifitseeritakse unikaalsete ID-dega. Kui allika ja sihtmärgi eristamine on mõttekas, on võrgustik suunatud (*directed*). Kui eristamine pole mõttekas on võrk suunamata (*undirected*).
+
+Seoste loend võib sisaldada ka täiendavaid veerge, mis kirjeldavad seoste atribuute, näiteks seose suurusjärku jms. Kui seostel on suurusjärgu atribuut (nt kaal), loetakse graafik kaalutuks (*weighted*).
+
+```{r pressure3, echo=FALSE, out.width = '100%'}
+knitr::include_graphics("images/graph1.jpg")
+```
+
+Tänases praktikumis kasutame [`tidygraph`](https://tidygraph.data-imaginist.com/)'i, kuna `tidygraph` põhineb `dplyr` keskkonnal, on võimalik juurde pääseda ka kõikidele `dplyr` paketi erinevatele funktsionaalsustele.
+
+Järgnevalt proovime andmestiku ka joonisele panna, selleks installige pakett `ggraph` ja võtke kasutusse. `ggraph` on laiendus `ggplot2`-le võrgustike analüüsiks. Seega on tegemist on paketiga, mis on mõeldud olema võimalikult `ggplot` jooniste sarnane. Seega on teda võimalik redigeerida teile tuttavate vahenditega.
+
+# 1. Sissejuhatus: lihtsamad võrgustikud
+
+Võrgustiku saame luua loome seoste loendist (*edges*) ja punktide loendist (*nodes*), kasutades funktsiooni `tbl_graph()`, mis on `tidygraph` paketi osa. Funktsioonis `tbl_graph()` määrame punktid (*nodes*) ja seosed (*edges*), kasutades vastavalt argumente `nodes =` ja `edges =`. `tbl_graph()` juures argument `directed =` `FALSE` võimaldaks öelda R-ile, et tahame luua suunamata võrgu (vaikeväärtus `= TRUE`).
+
+Kolme seosega (`edge`) suunamata võrgustik:
+
+```{r}
+# Create a tidygraph object directly
+g1 <- tbl_graph(edges = data.frame(from = c(1, 2, 3), to = c(2, 3, 1)))
+
+# Print the graph
+print(g1)
+plot(g1)
+```
+
+Punktide (*nodes*) arv võib olla suurem kui seoste (edge) arv:
+
+```{r}
+g2 <- tbl_graph(nodes = data.frame(name = 1:10),
+                edges = data.frame(from = c(1, 2, 3),
+                                   to = c(2, 3, 1)))
+
+print(g2)
+plot(g2)
+```
+
+Nimelised punktid (*nodes*):
+
+```{r}
+g3 <- tbl_graph(nodes = tibble::tibble(name = c("John", "Jim", "Jill")),
+                 edges = tibble::tibble(
+                   from = c("John", "Jim", "Jill"),
+                   to = c("Jim", "Jill", "John")))
+plot(g3)
+```
+
+Kasutades [`create_*()`](https://tidygraph.data-imaginist.com/reference/index.html) ja [`play*()`](https://tidygraph.data-imaginist.com/reference/index.html) saame luua lihtsa võrgustiku, et visualiseerida, kuidas erinevad võrgustiku paigutused ja struktuurid välja näevad.
+
+```{r}
+create_ring(8)
+
+plot(create_ring(8))
+```
+
+`play_gnm` -\> fikseeritud arvu **seoste** (*edges*) ja **punktidega** *(nodes)* juhuslik võrgustik.
+
+```{r}
+set.seed(13)
+play_gnm(n = 8, m=13)
+
+plot(play_gnm(n = 8, m=13, directed=F))
+```
+
+## Harjutus 1
+
+Looge 7 punktiga tähekujuline suunatud võrgustik ⭐
+
+```{r}
+
+```
+
+# 2. Andmete laadimine
+
+Uurime andmestikku, et mõista, kuidas erinevad meediaorganisatsioonid on omavahel seotud. Näiteks *use-case*'de pooleks võiks see meile teada anda, millist turunduskanalit on parem reklaami tegemiseks kasutada, st kus on liiklus suurem jne.
+
+Praktikumi andmed pärinevad [Kaggle](https://www.kaggle.com/datasets/rahulgoel1106/network-analysis-data-from-various-sources/data)'st.
+
+1.  *InputFileEdges.csv contains the information about the edges between nodes. The fields in this dataset are as follows:*
+    (i) *from: source (or) starting node id of the edge*
+    (ii) *to: target (or) ending node id of the edge*
+    (iii) *weight: the number of times they were connected (or) referenced each other*
+    (iv) *type: the type of the link (hyperlink or mention) between these nodes\**
+2.  *InputFileNodes.csv contains the information about the nodes. The fields in this dataset are as follows:*
+    (i) *id: unique node id*
+    (ii) *media: the media information of the node (e.g. NY Times, Washington Post, Wall Street Journal etc.)*
+    (iii) *media.type: the type of the media (1 represents Newspaper; 2 represents TV; and 3 represents Online)*
+    (iv) *type.label: the type of the media (Newspaper, TV, and Online)*
+    (v) *audience.size: the audience size for each media*
+
+Andmete laadimine. Laeme sisse nii `edges` kui ka `nodes` faili.
+
+```{r}
+media.edge <- read.csv("data/InputFileEdges.csv")
+media.node <- read.csv("data/InputFileNodes.csv")
+```
+
+```{r}
+head(media.edge)
+head(media.node)
+```
+
+Võrgustikuanalüüsi tegemiseks on vaja seoste ja punktide andmestike põhjal moodustada võrgustikuandmete objekt. Sedasorti andmeid hoiab pakett `tidygraph` objektis, mille tüüp on `tbl_graph`. Objekti `tbl_graph` moodustades saab ette anda `nodes` ehk punktide nimekirja, `edges` ehk seoste nimekirja jt asju.
+
+```{r}
+media <- tbl_graph(nodes = media.node, edges = media.edge)
+media 
+```
+
+-   Väljund annab meile infot punktide (17) ja seoste (51) arvu kohta; kas tegemist on suunatud võrgustikuga (momendil *directed* e. suunatud) ja mitu erinevat komponenti esineb (1). Viimane tähendab, et meil on justkui 1 alamvõrgustik.
+
+-   Seejärel näeme, et `tbl_graph` objektis on kaks alamandmestikku: Node Data ja Edge Data. Node Data sisaldab kõiki unikaalseid väärtusi, mis on leitud Edge Data väärtusest *from* ja *to*. Edge Data kirjeldab kõiki seoseid.
+
+-   Lisaks on näha, et Node Data on aktiivne (*active*). See tähendab, et me saame selle alamandmestikuga soovi korral teha vajalikke toiminguid teha, nt ümber järjestada, midagi muuta, filtreerida vms, lubatud on erinevad `tidyverse`'i tehted (`mutate`, `select`, `filter`, `summarise` jne).
+
+```{r}
+plot(media)
+```
+
+Funktsioon `activate()` võimaldab juurdepääsu punktide või seoste andmestikele.
+
+```{r}
+media %>% 
+  activate(edges) %>% 
+  as_tibble()
+```
+
+```{r}
+media %>% 
+  activate(nodes) %>% 
+  as_tibble()
+```
+
+Nt nimekiri erinevatest allikatest meie andmestikus.
+
+```{r}
+media_list <- media %>% 
+  activate(nodes) %>% 
+  pull(media)
+
+media_list
+```
+
+Siin on näide sellest, kuidas on võimalik võrgustikku teatud kategooria alusel filtreerida, st kasutusele võtta `dplyr` funktsioonid.
+
+```{r}
+# type=="hyperlink"
+
+media_h <- media %>% 
+  activate(edges) %>% 
+  filter(type=="hyperlink") 
+
+plot(media_h)
+```
+
+```{r}
+# type=="mention"
+
+media_m <- media %>% 
+  activate(edges) %>% 
+  filter(type=="mention")
+
+plot(media_m)
+```
+
+# 3. Joonised
+
+`ggraph`i pakett sisaldab analüüsi jaoks ainulaadseid `geom_*`-funktsioone seoste ja punktide visualiseerimiseks. Nt `geom_pointi` asemel saame kasutada `geom_node_point`. Pikem nimekiri erinevatest võimalustest [siin (Nodes, Edges)](https://ggraph.data-imaginist.com/reference/index.html).
+
+Joonise tegemiseks on vaja ette anda:
+
+-   andmed (`tbl_graph` objekt);
+
+-   soovitud üldine paigutus (`layout`);
+
+-   seoste, punktide kujundus;
+
+-   soovi korral muud asjad, mida `ggplot` võimaldab.
+
+`layout` on punktide vertikaalne ja horisontaalne **paigutus** konkreetse võrgustiku struktuuri visualiseerimisel. `layout`i valik peaks olema kasutaja poolt läbimõeldud, kuna sellel on suur mõju lõpptulemuse kujunemisele.
+
+Võrgustike visualiseerimisel tuleks silmas pidada seda, et kui on soov tehtud joonist korrata, peaks joonise tegemisele eelnema `set_seed()`. Kui seda ei kasuta, siis tuleb joonis iga kord natukene erinevalt.
+
+```{r}
+ggraph(media) + 
+  geom_edge_link() + 
+  geom_node_point()
+```
+
+`geom_edge_link()` võimaldab ühendusi sirgetega. Proovige, mida teevad `geom_edge_fan()`, `geom_edge_diagonal()` ja `geom_edge_arc()`.
+
+```{r}
+
+```
+
+Peamine viis, kuidas võrgustiku joonist täiustada on punktide (*nodes*) ja seoste (*edges*) värvi, suuruse jms muutmine.
+
+```{r}
+ggraph(media) + 
+  geom_edge_link(edge_color = 'gray',# värv
+                 edge_width = 2, # laius
+                 edge_linetype = 2) + # joone kuju, 0-6
+  geom_node_point(alpha = 0.5, # läbipaistvus
+                  colour = 'black', # punkti äärise värv
+                  fill = 'red', # punkti värv
+                  size = 7, # punkti suurus
+                  shape = 21, # punkti kuju, 0-25
+                  stroke = 2) # äärise laius
+```
+
+## Paigutus (layout)
+
+Paigutuse ehk `layout`-i puhul on erinevaid võimalusi. `ggraph` pakub rohkem kui 20 erinevat paigutust. Näiteks:
+
+-   <https://igraph.org/c/doc/igraph-Layout.html>
+
+-   <https://ggraph.data-imaginist.com/articles/Layouts.html>
+
+-   <https://cran.r-project.org/web/packages/ggraph/vignettes/Layouts.html>
+
+Kui `ggraphil` puudub vajalik paigutus, on alati võimalik luua enda funktsioon, kasutades `create_layout()`.
+
+Kui `layout`-i mitte ette anda, valitakse automaatselt välja üks võimalikest.
+
+Nagu mainitud, tasub joonisel proovida läbi erinevaid võrgustiku paigutusi. Alustada võib näiteks nimekirjast: ‘star’, ‘circle’, ‘gem’, ‘dh’, ‘graphopt’, ‘grid’, ‘mds’, ‘randomly’, ‘fr’, ‘kk’, ‘drl’, ‘lgl’, ‘stress’. Mõned paigutused võivad vajada veidi pikemat optimeerimist.
+
+```{r}
+?layout_tbl_graph_igraph
+```
+
+```{r}
+ggraph(media, layout = "graphopt") + 
+  geom_edge_link() + 
+  geom_node_point()
+```
+
+## Jooned
+
+Järgnevalt proovime nüüd muuta joonist selliselt, et suurem arv üksteisele viitamisi oleks näidatud paksema joonega. Selleks tuleks muuta `geom_edge_link` osa ning anda ette joone jämeduse määramiseks (parameeter `width`) vastav tunnus (praegu on viitamiste arv tunnuses nimega *weight*).
+
+```{r}
+ggraph(media, layout = "graphopt") + 
+  geom_edge_link(aes(width = weight)) + 
+  geom_node_point()
+```
+
+Teeme ilusamaks. Anname ette vahemikud kõige peenema ja paksema joone laiuseks.
+
+```{r}
+ggraph(media, layout = "graphopt") + 
+  geom_edge_link(aes(width = weight)) + 
+  scale_edge_width_continuous(range = c(0.3, 2.1)) +
+  geom_node_point(size = 3)
+```
+
+## Tekst
+
+Järnevalt võiksime proovida lisada ka sildid e. *label*-id punktide juurde. Selleks on meil veerg *media*. Lisame sildid käsuga `geom_node_text()`. `repel=TRUE` võimaldab teksti nihutada punktide kõrvale, st takistab nn *overlapping*ut.
+
+```{r}
+ggraph(media, layout = "graphopt") + 
+  geom_edge_link(aes(width = weight)) + 
+  geom_node_point(size = 3) +
+  scale_edge_width_continuous(range = c(0.3, 2.1)) +
+  geom_node_text(aes(label = media), repel = TRUE)
+```
+
+```{r}
+ggraph(media, layout = "gem") +
+  geom_edge_link(color = "grey80", width = 2,
+                 end_cap = circle(0.5,"cm"), 
+                 start_cap = circle(0.5, "cm")) +
+    geom_node_text(aes(label = media))
+```
+
+Sarnaselt `ggplot`ile, on ka siin võimalik kasutada erinevaid teema funktsioone. Lisame joonisele ka “teema” ehk `theme_*` funktsiooni, mille erinevaid valikuid on näha siit: [https://ggplot2.tidyverse.org/reference/#themes](#0)
+
+```{r warning=FALSE}
+ggraph(media, layout = "graphopt") + 
+  geom_edge_link(aes(width = weight)) + 
+  geom_node_point(size = 3) +
+  scale_edge_width_continuous(range = c(0.3, 2.1)) +
+  geom_node_text(aes(label = media), repel = TRUE) +
+  theme_graph()
+```
+
+Soovi korral saaksime määrata joonisele nii punkti kui seose omadusi sõltuvalt mõnest teisest tunnusest. Proovime näiteks teha joonise selliselt, et erineva tüübiga allikad oleks kujutatud erineva värviga.
+
+```{r warning=FALSE}
+ggraph(media, layout = "graphopt") + 
+  geom_edge_link(aes(width = weight)) + 
+  geom_node_point(aes(color = type.label), size = 3) +
+  scale_edge_width_continuous(range = c(0.3, 2.1)) +
+  geom_node_text(aes(label = media), repel = TRUE) +
+  theme_graph()
+```
+
+## Värvid
+
+Sama asja visualiseerimiseks võime kasutada ka teisi värve. Nagu `ggplot`i puhul ikka, saaks ka siin anda ette oma värviskeemi.
+
+```{r}
+ggraph(media, layout = "graphopt") +
+  geom_edge_link(aes(color = weight)) +
+  geom_node_point()
+```
+
+Seekord on värvide aluseks kasutatud punktide andmestikust väärtust *audience.size*. `scale_color_viridis` on värvipalett.
+
+```{r}
+ggraph(media, layout = "graphopt") +
+  geom_edge_link() +
+  geom_node_point(aes(color = audience.size), size = 3) +
+  scale_color_viridis()
+```
+
+Saame värvida ka seose tüüpi.
+
+```{r warning=FALSE}
+ggraph(media, layout = "graphopt") +
+  geom_edge_fan(aes(color = type), width = .5) +
+  geom_node_point(aes(color = audience.size), size = 3) +
+  scale_color_viridis() +
+  theme_graph()
+```
+
+## Punktid
+
+Teine levinud lähenemisviis võrgustiku osade esiletõstmiseks on punktide (*nodes*) suuruse või seoste (*edges*) laiuse muutmine. Muudame oma eelmist graafikut nii, et nüüd põhineb punktide suurus publiku suurusel.
+
+```{r warning=FALSE}
+ggraph(media, layout = "graphopt") +
+  geom_edge_fan(aes(color = type), width = .5) +
+  geom_node_point(aes(size = audience.size)) +
+  scale_color_viridis() +
+  theme_graph()
+```
+
+## Muud
+
+Antud andmestiku puhul on tegu suunatud võrgustikuga, aga ainult joonte põhjal see info kahjuks välja ei tule. Üheks võimaluseks on kasutada joonisel nooli -\> `arrow()`. Samuti on joonist võimalik muuta läbi `aes()` funktsiooni, nt punktide värv ja silt (*label*).
+
+```{r warning=FALSE}
+set.seed(123)
+
+media %>% 
+ggraph(layout = 'graphopt') + 
+    geom_edge_link(arrow = arrow(length = unit(2, 'mm')), 
+                   end_cap = circle(3, 'mm')) +
+  geom_node_point(size = 3) +  
+  geom_node_text(aes(label = media, color = type.label), size=3, repel = T) +
+  theme_graph()
+```
+
+Võimalik on ka alamjooniste tegemine mõne kategooria alusel nii punktide andmestiku kui ka seoste andmestiku lõikes. Selleks saab kasutada `facet_nodes` kui ka `facet_edges`.
+
+```{r warning=FALSE}
+ggraph(media, layout = 'gem') + 
+    geom_edge_link(arrow = arrow(length = unit(2, 'mm')), 
+                   end_cap = circle(3, 'mm')) + 
+    geom_node_point(size = 3) +
+  geom_node_text(aes(label = media), size=3, repel = T) +
+  facet_nodes(~type.label) + 
+  theme_graph(foreground = 'steelblue')
+```
+
+## Harjutus 2
+
+Vastipidiselt eelmisele näitele, proovige nüüd luua alamjoonised [seoste tüübi]{.underline} lõikes. Eristage erinevad [punktide tüübid]{.underline} (*type.label*) eri värvidega.
+
+```{r warning=FALSE}
+
+```
+
+# 4. Näitajad võrgustiku kohta
+
+Lisaks võrgustike visualiseerimisele, saame neid ka lähemalt analüüsida läbi näitajate, mis kirjeldavad võrgustike struktuurilisi omadusi.
+
+## *Centrality* e. kesksus
+
+Kesksuse mõõdikud annavad kvantitatiivset konteksti punktide (*nodes*) tähtsuse kohta võrgustikus. Mida kõrgem on kesksus, seda kesksem on punkt (*node*). Kesksuse määratlemiseks on mitmeid mõõdikuid. Igal kesksuse mõõdikul on erinev kasutus ja tõlgendus.
+
+```{r pressure2, echo=FALSE, out.width = '100%'}
+knitr::include_graphics("images/centrality.webp")
+```
+
+Lisaks on veel palju erinevaid mõõdikuid võrgustike analüüsimiseks, mida ühe praktikumiga lihtsalt läbi ei jõua võtta: [Centrality, Node Measures, Edge Measures, Graph measures](https://tidygraph.data-imaginist.com/reference/index.html).
+
+### ***Degree Centrality*** **e. astmekesksus**
+
+Astmekesksus näitab, [kui palju ühendusi konkreetsel punktil on.]{.underline} See mõõde aitab tuvastada kõige aktiivsemad punktid võrgustikus. St näitab, kui palju seoseid ühel punktil on. Suunatud ja suunamata võrgustike puhul on arvutused mõnevõrra erinevad (st vaadelda saab nii sissetulevate, väljaminevate kui ka mõlema ühenduste summat), kuid idee on sama: mitu otsest, ühe hüppega, ühendust on igal punktil võrgustiku teiste punktidega.
+
+Seoste andmestikus on meil ka kaalud, kasutame neid siin.
+
+```{r}
+media %>% 
+  activate(nodes) %>% 
+  mutate(degree_c = centrality_degree(mode = 'total', weights = weight)) %>% 
+  arrange(desc(degree_c)) %>% 
+  slice(1:3)
+```
+
+Vaatame milline on astmekesksuse jaotus meie võrgustikus.
+
+```{r warning=FALSE}
+media %>% 
+  activate(nodes) %>%
+  mutate(degree = centrality_degree(mode = 'total', weights = weight)) %>% 
+  as_tibble() %>% 
+  ggplot() + 
+  geom_histogram(mapping = aes(x = degree))
+```
+
+Tsentraalsuse mõõdikuid saab kasutada ka joonistel.
+
+```{r warning=FALSE}
+plot_centrality = media %>% 
+  activate(nodes) %>%
+  mutate(degree = centrality_degree(mode = 'total', weights = weight)) 
+  
+ggraph(plot_centrality, layout = 'stress') + 
+  geom_edge_link() + 
+  geom_node_point(aes(size = degree, colour = degree)) + 
+  scale_color_continuous(guide = 'legend') + 
+  theme_graph()
+```
+
+### ***Eigenvector Centrality*** **e. omavektorkesksus**
+
+Omavektorkesksus mõõdab, kuidas on seotud punkt ja kui palju see võib otseselt mõjutada võrgustiku teisi ühendatud punkte. Sarnaneb astmekesksusele, aga [näitab kui seotud ja kui tugev mõju on võrgus]{.underline}: rohkem seoseid tugevamate (kõrgema omavektorkesksusega) punktidega annab punktile kõrgema omavektorkesksuse väärtuse. Seega saab tipul olla suurem omavektorkesksus, kui on rohkem (tähtsaid) ühendusi.
+
+```{r}
+media %>% 
+  activate(nodes) %>% 
+  mutate(eigen = centrality_eigen(weights = weight, directed = T)) %>% 
+  arrange(desc(eigen)) %>% 
+  slice(1:3)
+```
+
+### ***Closeness centrality*** **e. läheduskesksus**
+
+Läheduskesksus [mõõdab, mitu sammu on vaja antud punktist igale teisele punktile juurdepääsuks.]{.underline} Teisisõnu, olulistel punktidel on mitme ühenduse korral lihtne juurdepääs teistele punktidele. Punktil, millel on kõrge läheduskesksuse mõõde omab lühimaid teid teiste punkideni ehk kõrgeima läheduskesksusega punkte peetakse punktideks, mis suudavad teavet levitada kiiremini kui teised. Ehk võimaldab leida need võrgustiku liikmed, kellel on kõige parem positsioon kogu võrgustiku mõjutada.
+
+```{r}
+media %>% 
+  activate(nodes) %>% 
+  mutate(closeness_c = centrality_closeness(weights = weight, mode = 'total')) %>% 
+  arrange(desc(closeness_c)) %>% 
+  slice(1:3)
+```
+
+### ***Betweenness Centrality*** **e. vahelisuskesksus**
+
+Järjestab punktid võrgustikku läbivate ühenduste alusel ja mõõdab iga punkti kaudu läbitavate teekondade arvu. Näitab, [kui tihti jääb antud punkt kõigi teiste punktide vahelistele teekondadele.]{.underline} Ehk kui võtta kõik teede kombinatsioonid, siis kui tihti jääb antud punkt kõigi teiste punktide vahelistele teekondadele. Suure vahelisuskesksusega punktid toimivad tavaliselt sillana mitmete muude oluliste punktide jaoks, mis nn levitavad teavet kõige laiemalt ehk kui olulised on punktid võrgustiku teabevoos.
+
+```{r}
+media %>% 
+  activate(nodes) %>% 
+  mutate(betweenness_c = centrality_betweenness(weights = weight, 
+                                                directed = T)) %>% 
+  arrange(desc(betweenness_c)) %>% 
+  slice(1:3)
+```
+
+```{r warning=FALSE}
+media_betw = media %>%
+                activate(nodes) %>%
+                mutate(betweenness_c = centrality_betweenness(weights = weight, 
+                                                directed = T))
+
+media_betw %>% 
+  ggraph(layout = 'nicely') + 
+  geom_edge_link() + 
+  geom_node_point(aes(size = betweenness_c, colour = betweenness_c)) + 
+  scale_color_continuous(guide = 'legend') + 
+  theme_graph()
+```
+
+## Harjutus 3
+
+Proovime tsentraalsuse mõõdikud ka kuidagi joonisele panna. Arvutage meie andmestikule *degree centrality* ja *betweenness centrality*. Proovige kuvada mõlemad mõõdikud võrgustiku joonisel. Mõelge, kuidas seda teha - punktide värv, suurus jms.
+
+```{r warning=FALSE}
+
+```
+
+## Harjutus 4
+
+Kasutame ainult vahelisuskesksust (*betweenness centrality*), aga seekord proovime eristada joonisel ka punktid allika tüübi lõikes (*type.label*).
+
+```{r warning=FALSE}
+
+```
+
+## Võrgustiku *key player*i leidmine
+
+Järgnevalt proovime leida `media` võrgustiku nn *key player*'i ehk võrgustiku silmapaistvama liikme. *Key player* on termin võrgu kõige mõjukamate liikmete jaoks, mis põhineb erinevatel näidikutel, mis on antud juhul erinevad kesksuse (*centrality*) mõõdikud. Kasutajat, kellel on kõigi kesksuse näidikud kõrged, võib pidada kogu võrgustiku nn võtmemängijaks.
+
+```{r warning=FALSE}
+ media_nw = media %>% 
+  mutate(degree_c = centrality_degree(mode = 'total', weights = weight)) %>%
+  mutate(betweenness_c = centrality_betweenness(weights = weight,directed = T)) %>%
+  mutate(closeness_c = centrality_closeness(weights = weight, mode = 'total')) %>%
+  mutate(eigen = centrality_eigen(weights = weight, directed = T))
+ 
+media_nw %>% slice(1:6)
+```
+
+Selleks teeme eelnevalt saadud tulemused `dataframe`'ks
+
+```{r}
+media_nw_df <- as.data.frame(media_nw %>% activate(nodes))
+media_nw_df
+```
+
+```{r}
+# võtame esimesed 6
+kp_ego <- data.frame(
+  media_nw_df %>% 
+    arrange(-degree_c) %>% 
+    select(media) %>% 
+    slice(1:6),
+  media_nw_df %>% 
+    arrange(-betweenness_c) %>% 
+    select(media) %>% 
+    slice(1:6),
+  media_nw_df %>% 
+    arrange(-closeness_c) %>% 
+    select(media) %>% 
+    slice(1:6),
+  media_nw_df %>% 
+    arrange(-eigen) %>% 
+    select(media) %>% 
+    slice(1:6)) %>% 
+  setNames(c("degree","betweenness","closeness","eigen"))
+
+kp_ego
+```
+
+Tabelist on näha, et Wall Street Journal on kõigi kesksuse näidikute osas kõrgeima skooriga. See meediaallikas on oluline punkt võrgustiku teabevoos (kõrge vahelisuskaugus), suudab teavet kiiremini levitada kui teised (läheduskesksus), aga ka ümbritsetud olulistest "isikutest" (kõrge omavektorkesksus).
+
+Seejärel USA Today, NY Times.
+
+# 5. Kogukonnad e. *communities*
+
+Lisaks on võimalik võrgustikus olevaid inimesi grupeerida (klasterdada) ehk vaadata kogukondi. Gruppe saab luua käsuga `group_*`. Ülevaade erinevatest grupeerimise funktsioonidest on [siin](https://tidygraph.data-imaginist.com/reference/group_graph.html).
+
+Loodud grupp tuleks lisada andmestikku - selleks aktiveerime andmestikust punktide osa (*nodes*) ja lisame sinna uue tunnuse käsuga `mutate()`.
+
+`group_infomap()`: asetab sarnased punktid võimalikult lähestikku.
+
+```{r warning=FALSE}
+set.seed(12)
+
+media %>%
+activate(nodes) %>% 
+  mutate(community = as.factor(group_infomap(weights = weight))) %>%
+  ggraph(layout = 'drl') +
+  geom_edge_link(aes(alpha = ..index..), show.legend = F) + 
+  geom_node_point(aes(colour = community), size = 7) +
+  geom_node_text(aes(label = media)) + 
+  scale_color_brewer(palette = "Set2") +
+  theme_graph()
+```
+
+Erinevad grupeerimise aluseks olevad algoritmid võivad saada erinevaid tulemusi grupeerimisel.
+
+`group_walktrap()`: grupeerib erinevaid punkte, läbides juhuslikke teekondi läbi seoste. Need punktid, mis on tihti samadel nn teekondadel saavad kokku grupeeritud.
+
+```{r warning=FALSE}
+
+media_community = media %>%
+activate(nodes) %>% 
+mutate(community = as.factor(group_walktrap(weights = weight)))
+
+set.seed(123)
+  
+media_community %>%
+  ggraph(layout = 'drl') +
+  geom_edge_link(aes(alpha = ..index..), show.legend = F) + 
+  geom_node_point(aes(colour = community), size = 7) +
+  geom_node_text(aes(label = media)) + 
+  scale_color_brewer(palette = "Set2") +
+  theme_graph()
+```
+
+Tekkinud klastreid võiks ka kuidagi lähemalt uurida.
+
+```{r}
+media_community %>% 
+  arrange(community)
+```
+
+Näiteks näeme, et esimesse klastrisse kuuluvad valdavalt ajalehed, teise klastrisse TV ja neljandasse klastrisse osad Online allikad.
+
+Kõrgema astmekesksusega punktid võiksid olla oma nn kogukonnas ehk klastris mõjukamad.
+
+```{r}
+ media_community %>% 
+  activate(nodes) %>% 
+  mutate(degree_centrality = centrality_degree(mode = 'total', 
+                                               weights = weight)) %>% 
+  arrange(community)
+```
+
+Kõrgema vahelise tsentraalsusega sõlmed võivad toimida silladena kogukonna erinevate osade vahel.
+
+```{r}
+ media_community %>% 
+  activate(nodes) %>% 
+  mutate(between_centrality = centrality_betweenness(weights = weight)) %>% 
+  arrange(community)
+```
+
+# 6. Interaktiivsed joonised
+
+Täpsemalt on võimalik paketi ja selle erinevate võimalustega tutvuda [siin](https://cran.r-project.org/web/packages/visNetwork/vignettes/Introduction-to-visNetwork.html).
+
+```{r}
+nodes_i = data.frame(id = media.node$id,
+                   label = media.node$media,
+                   group = media.node$type.label,
+                   shape = "circle",
+                   title = paste0("Audience size: ", media.node$audience.size))
+
+edges_i = data.frame(from = media.edge$from, 
+                   to = media.edge$to,
+                   label = media.edge$type,
+                   arrows = 'from')
+```
+
+```{r}
+visNetwork(nodes = nodes_i, edges = edges_i) %>% 
+  visIgraphLayout(layout = "layout_with_fr") %>%
+  visLegend() %>% 
+  visOptions(highlightNearest = TRUE,
+             nodesIdSelection = TRUE)
+```
+
+**Veel materjale:**
+
+-   R-is on võrgustikuanalüüsi tegemiseks veel olemas ka pakett `igraph`, kuigi ka pakett `tidygraph` põhineb suures osas [igraph](https://igraph.org/r/) funktsioonidel. Rohkem [siit](https://bookdown.org/jdholster1/idsr/network-analysis.html).
+
+-   Andmestikud võrgustikuanalüüsi harjutamiseks🤓
+
+    -   [Datasets](https://github.com/briatte/awesome-network-analysis?tab=readme-ov-file#datasets){.uri}
+
+    -   [igraphdata: A Collection of Network Data Sets for the 'igraph' Package](https://cran.r-project.org/web/packages/igraphdata/igraphdata.pdf)
+
+    -   [Stanford Large Network Dataset Collection](https://snap.stanford.edu/data/)
+
+    -   [Network Repository](https://networkrepository.com/)
+
+    -   [Datasets of networks](https://chatox.github.io/networks-science-course/practicum/data/){.uri}
+
+    -   [The Colorado Index of Complex Networks (ICON)](https://icon.colorado.edu/#!/){.uri}
+
+    -   [Kaggle](https://www.kaggle.com/), nt:
+
+        -   <https://www.kaggle.com/datasets/victorsoeiro/netflix-tv-shows-and-movies?select=titles.csv>
+
+        -   <https://www.kaggle.com/datasets/victorsoeiro/disney-tv-shows-and-movies>
